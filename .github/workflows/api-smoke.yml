@@ -67,7 +67,18 @@ jobs:
               except Exception:
                   if attempt==7: raise
                   time.sleep(12)
-          print("Public HTTP verification and capability discovery passed.")
+          # The remote MCP route must exist but reject anonymous access.
+          from urllib.error import HTTPError
+          unauthorized=urllib.request.Request(
+              base+"/mcp", data=b"{}", method="POST",
+              headers={"Content-Type":"application/json"})
+          try:
+              with urllib.request.urlopen(unauthorized,timeout=35):
+                  raise AssertionError("MCP endpoint unexpectedly allowed anonymous access")
+          except HTTPError as exc:
+              assert exc.code==401, f"MCP expected 401, got {exc.code}"
+          print("Public REST, discovery, and MCP authentication boundary passed.")
+
           PY
 
   report:
