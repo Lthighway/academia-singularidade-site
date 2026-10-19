@@ -5,10 +5,6 @@
 ## Run (Python 3.12)
 ```sh
 python -m pip install -r mcp/requirements.txt
-python -m mcp.server
-```
-The package name `mcp` conflicts with the third-party SDK namespace, so **do not use** the command above. Instead run:
-```sh
 python mcp/server.py
 ```
 The stdio transport is intended for a local MCP client. Do not use the public HTTPS URL as an MCP endpoint; it currently serves HTTP/OpenAPI only.
