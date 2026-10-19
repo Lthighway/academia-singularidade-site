@@ -7,8 +7,8 @@ import asyncio
 import time
 from collections import deque
 from threading import Lock
-import hmac
 import os
+from auth import authorize
 
 from mcp.server.transport_security import TransportSecuritySettings
 from server import mcp
@@ -18,8 +18,12 @@ BODY_TIMEOUT_SECONDS = 8
 # Process-local circuit breaker for a single-instance staging service.
 # This is not a substitute for provider-level global rate limiting.
 PER_MINUTE_LIMIT = 90
+PER_AGENT_MINUTE_LIMIT = 30
+MAX_CONCURRENT = 8
 _rate_events = deque()
+_actor_events = {}
 _rate_lock = Lock()
+_inflight = asyncio.Semaphore(MAX_CONCURRENT)
 
 
 def configured_set(name):
@@ -60,21 +64,21 @@ class SecureMCP:
             await send({"type": "http.response.body", "body": b'{"detail":"Request rejected"}'})
 
         headers = {key.lower(): value for key, value in scope.get("headers", [])}
-        token = os.environ.get("AUN_MCP_TOKEN", "")
         hosts = {v.lower() for v in configured_set("AUN_MCP_HOSTS")}
         origins = configured_set("AUN_MCP_ORIGINS")
         host = headers.get(b"host", b"").decode("latin-1").lower()
         origin = headers.get(b"origin", b"").decode("latin-1")
         authorization = headers.get(b"authorization", b"").decode("latin-1")
 
-        if len(token) < 32 or not hosts:
+        if not hosts:
             await reject(503)
             return
         if host not in hosts or (origin and origin not in origins):
             await reject(403)
             return
-        if not hmac.compare_digest(authorization, "Bearer " + token):
-            await reject(401)
+        auth_status, actor = authorize(authorization)
+        if auth_status != 200:
+            await reject(auth_status)
             return
         try:
             length_header = headers.get(b"content-length")
@@ -90,9 +94,18 @@ class SecureMCP:
         with _rate_lock:
             while _rate_events and _rate_events[0] <= now - 60:
                 _rate_events.popleft()
-            throttled = len(_rate_events) >= PER_MINUTE_LIMIT
+            # Scope policy is process-local and resets on deployment. Global
+            # ingress rate limiting remains a production release requirement.
+            actor_events = _actor_events.setdefault(actor, deque())
+            while actor_events and actor_events[0] <= now - 60:
+                actor_events.popleft()
+            throttled = (
+                len(_rate_events) >= PER_MINUTE_LIMIT
+                or len(actor_events) >= PER_AGENT_MINUTE_LIMIT
+            )
             if not throttled:
                 _rate_events.append(now)
+                actor_events.append(now)
         if throttled:
             await reject(429)
             return
@@ -129,7 +142,15 @@ class SecureMCP:
                         "more_body": False}
             return await receive()
 
-        await self.wrapped(scope, bounded_receive, send)
+        try:
+            await asyncio.wait_for(_inflight.acquire(), timeout=0.05)
+        except TimeoutError:
+            await reject(429)
+            return
+        try:
+            await self.wrapped(scope, bounded_receive, send)
+        finally:
+            _inflight.release()
 
 
 app = SecureMCP(inner_app)
