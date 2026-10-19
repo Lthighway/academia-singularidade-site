@@ -47,17 +47,34 @@ class SecureMCP:
             await send({"type": "http.response.body", "body": b'{"detail":"Request rejected"}'})
             return
 
+        # Read and bound the body before passing it to the SDK.
+        chunks = []
         received = 0
-        async def limited_receive():
-            nonlocal received
+        while True:
             message = await receive()
-            if message["type"] == "http.request":
-                received += len(message.get("body", b""))
-                if received > MAX_BODY:
-                    raise ValueError("MCP request body limit exceeded")
-            return message
+            if message["type"] == "http.disconnect":
+                return
+            if message["type"] != "http.request":
+                continue
+            chunk = message.get("body", b"")
+            received += len(chunk)
+            if received > MAX_BODY:
+                await send({"type": "http.response.start", "status": 413, "headers": [(b"content-type", b"application/json")]})
+                await send({"type": "http.response.body", "body": b'{"detail":"Body too large"}'})
+                return
+            chunks.append(chunk)
+            if not message.get("more_body", False):
+                break
 
-        await self.wrapped(scope, limited_receive, send)
+        delivered = False
+        async def bounded_receive():
+            nonlocal delivered
+            if not delivered:
+                delivered = True
+                return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+            return await receive()
+
+        await self.wrapped(scope, bounded_receive, send)
 
 
 app = SecureMCP(inner_app)
