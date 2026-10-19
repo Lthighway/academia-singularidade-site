@@ -63,7 +63,17 @@ class SecureMCP:
                                     (b"x-content-type-options", b"nosniff")]})
             await send({"type": "http.response.body", "body": b'{"detail":"Request rejected"}'})
 
-        headers = {key.lower(): value for key, value in scope.get("headers", [])}
+        source_headers = scope.get("headers", [])
+        critical = {b"host", b"authorization", b"origin", b"content-length"}
+        seen = set()
+        for key, value in source_headers:
+            normalized = key.lower()
+            if normalized in critical:
+                if normalized in seen:
+                    await reject(400)
+                    return
+                seen.add(normalized)
+        headers = {key.lower(): value for key, value in source_headers}
         hosts = {v.lower() for v in configured_set("AUN_MCP_HOSTS")}
         origins = configured_set("AUN_MCP_ORIGINS")
         host = headers.get(b"host", b"").decode("latin-1").lower()
