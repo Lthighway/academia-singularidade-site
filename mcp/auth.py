@@ -9,6 +9,7 @@ import hmac
 import json
 import os
 import re
+from datetime import datetime, timezone
 
 MAX_AGENTS = 64
 MAX_REGISTRY_BYTES = 8192
@@ -16,6 +17,7 @@ TOKEN_MIN = 32
 TOKEN_MAX = 256
 _AGENT_ID = re.compile(r"^[a-z0-9][a-z0-9._-]{1,63}$")
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
+_UTC_ISO = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 _ALLOWED_SCOPES = frozenset({"mcp:invoke"})
 
 
@@ -26,6 +28,15 @@ def _unique_pairs(pairs):
             raise ValueError("Duplicate agent configuration key")
         value[key] = item
     return value
+
+
+def _utc_expiration(text):
+    if not isinstance(text, str) or not _UTC_ISO.fullmatch(text):
+        raise ValueError("Invalid expiration timestamp")
+    try:
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError as exc:
+        raise ValueError("Invalid expiration date") from exc
 
 
 def _load_registry(raw):
@@ -39,7 +50,7 @@ def _load_registry(raw):
     for agent_id, policy in registry.items():
         if not isinstance(agent_id, str) or not _AGENT_ID.fullmatch(agent_id):
             raise ValueError("Invalid agent identifier")
-        if not isinstance(policy, dict) or set(policy) != {"sha256", "scopes", "enabled"}:
+        if not isinstance(policy, dict) or not {"sha256", "scopes", "enabled"} <= set(policy) or set(policy) - {"sha256", "scopes", "enabled", "expires_at"}:
             raise ValueError("Invalid agent policy")
         if not isinstance(policy["sha256"], str) or not _DIGEST.fullmatch(policy["sha256"]):
             raise ValueError("Invalid digest")
@@ -52,6 +63,8 @@ def _load_registry(raw):
             raise ValueError("Invalid agent scopes")
         if len(scopes) != len(set(scopes)):
             raise ValueError("Repeated agent scopes")
+        if "expires_at" in policy:
+            _utc_expiration(policy["expires_at"])
     return registry
 
 
@@ -93,6 +106,9 @@ def authorize(authorization, environment=None):
         return 200, "operator"
     if matched_policy is None or not matched_policy["enabled"]:
         return 401, None
+    if "expires_at" in matched_policy:
+        if datetime.now(timezone.utc) >= _utc_expiration(matched_policy["expires_at"]):
+            return 401, None
     if "mcp:invoke" not in matched_policy["scopes"]:
         return 403, None
     return 200, matched_id
