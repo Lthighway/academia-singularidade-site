@@ -2,7 +2,8 @@
 import asyncio
 import os
 import httpx
-from remote import app
+import remote
+from remote import app, SecureMCP
 
 
 async def check():
@@ -23,7 +24,36 @@ async def check():
         assert r.status_code == 403, r.text
         r = await client.post("/mcp", content=b"x" * 9000, headers={"Authorization": "Bearer test-only-not-a-secret"})
         assert r.status_code == 413, r.text
-    print("MCP remote preflight rejection tests passed.")
+    # Exercise the guard's successful pass-through without MCP SDK sessions.
+    async def fake_ok(scope, receive, send):
+        message = await receive()
+        assert message["type"] == "http.request"
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    async def streamed_body():
+        yield b"x" * 5000
+        yield b"y" * 5000
+
+    fake_app = SecureMCP(fake_ok)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fake_app),
+                                 base_url="http://testserver") as client:
+        headers = {"Authorization": "Bearer test-only-not-a-secret"}
+        r = await client.post("/mcp", content=b"{}", headers=headers)
+        assert r.status_code == 200, r.text
+        r = await client.post("/mcp", content=streamed_body(), headers=headers)
+        assert r.status_code == 413, r.text
+        old_limit = remote.PER_MINUTE_LIMIT
+        try:
+            remote._rate_events.clear()
+            remote.PER_MINUTE_LIMIT = 2
+            assert (await client.post("/mcp", content=b"{}", headers=headers)).status_code == 200
+            assert (await client.post("/mcp", content=b"{}", headers=headers)).status_code == 200
+            assert (await client.post("/mcp", content=b"{}", headers=headers)).status_code == 429
+        finally:
+            remote.PER_MINUTE_LIMIT = old_limit
+            remote._rate_events.clear()
+    print("MCP remote preflight authentication, limits and streaming tests passed.")
 
 
 if __name__ == "__main__":
