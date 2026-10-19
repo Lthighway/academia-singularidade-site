@@ -1,7 +1,7 @@
 """Experimental MCP stdio adapter for public, deterministic AUN tools.
 
 No private Core access, network listener, filesystem writes, accounts, or exchange.
-Run with: python -m mcp.server (from repository root).
+Run with: python mcp/server.py (from repository root).
 """
 import hashlib
 import json
