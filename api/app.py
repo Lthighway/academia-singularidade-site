@@ -77,6 +77,10 @@ async def guard(request: Request, call_next):
     response.headers["Cache-Control"]="no-store"
     response.headers["X-Content-Type-Options"]="nosniff"
     return response
+@app.get("/")
+def root():
+    return {"service":"Academia Singularidade AUN public preview","status":"online","health":"/healthz","tools":"/v1/tools","docs":"/docs","mcp":False,"a2a":False}
+
 @app.get("/healthz")
 def health():
     return {"status":"ok","service":"aun-public-preview"}
