@@ -1,0 +1,46 @@
+name: Public API verification
+on:
+  push:
+    branches: [main]
+    paths: ["api/**", ".github/workflows/api-smoke.yml"]
+  workflow_dispatch:
+jobs:
+  local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r api/requirements.txt pytest httpx
+      - run: python -m pytest api/test_app.py -q
+  remote:
+    needs: local
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployed preview
+        run: |
+          set -eu
+          python - <<'PY'
+          import json, urllib.request, hashlib, time
+          base="https://academia-singularidade-aun.onrender.com"
+          def req(path,payload=None):
+              data=None if payload is None else json.dumps(payload).encode()
+              r=urllib.request.Request(base+path,data=data,headers={"Content-Type":"application/json"} if data else {})
+              with urllib.request.urlopen(r,timeout=35) as response:
+                  assert response.status==200
+                  return json.load(response)
+          for attempt in range(5):
+              try:
+                  assert req("/healthz")["status"]=="ok"
+                  break
+              except Exception:
+                  if attempt==4: raise
+                  time.sleep(15)
+          assert {x["name"] for x in req("/v1/tools")["tools"]}=={"hash","json"}
+          result=req("/v1/verify/hash",{"document":"abc"})
+          assert result["digest"]==hashlib.sha256(b"abc").hexdigest()
+          assert req("/v1/verify/json",{"document":'{"x":true}'})["valid"] is True
+          assert req("/v1/verify/json",{"document":'{"x":1,"x":2}'})["valid"] is False
+          print("Public HTTP verification passed.")
+          PY
