@@ -102,8 +102,10 @@ jobs:
             const repo = context.repo;
             const issue_number = 1;
             const previous = await github.rest.issues.get({ ...repo, issue_number });
-            const match = (previous.data.body || '').match(/\\*\\*Latest run:\\*\\* \\[(\\d+)\\]/);
-            const previousRunId = match ? Number(match[1]) : 0;
+            const marker = '**Latest run:** [';
+            const previousBody = previous.data.body || '';
+            const at = previousBody.indexOf(marker);
+            const previousRunId = at < 0 ? 0 : Number(previousBody.slice(at + marker.length).split(']')[0]);
             if (previousRunId > Number(context.runId)) {
               core.info(`A newer CI report (${previousRunId}) already exists; skipping stale run ${context.runId}.`);
               return;
