@@ -12,17 +12,19 @@ async def check():
         os.environ["AUN_MCP_HOSTS"] = "testserver"
         r = await client.post("/mcp", content=b"{}")
         assert r.status_code == 503, r.text
-        os.environ["AUN_MCP_TOKEN"] = "test-only-not-a-secret"
+        os.environ["AUN_MCP_TOKEN"] = "short-token"
+        assert (await client.post("/mcp", content=b"{}")).status_code == 503
+        os.environ["AUN_MCP_TOKEN"] = "ci-only-long-example-token-never-deploy-123456"
         os.environ["AUN_MCP_ORIGINS"] = "https://example.org"
         r = await client.post("/mcp", content=b"{}")
         assert r.status_code == 401, r.text
         r = await client.post("/mcp", content=b"{}", headers={"Authorization": "Bearer wrong"})
         assert r.status_code == 401, r.text
-        r = await client.post("/mcp", content=b"{}", headers={"Authorization": "Bearer test-only-not-a-secret", "Origin": "https://evil.example"})
+        r = await client.post("/mcp", content=b"{}", headers={"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456", "Origin": "https://evil.example"})
         assert r.status_code == 403, r.text
-        r = await client.post("/mcp", content=b"{}", headers={"Authorization": "Bearer test-only-not-a-secret", "Host": "wrong.example"})
+        r = await client.post("/mcp", content=b"{}", headers={"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456", "Host": "wrong.example"})
         assert r.status_code == 403, r.text
-        r = await client.post("/mcp", content=b"x" * 9000, headers={"Authorization": "Bearer test-only-not-a-secret"})
+        r = await client.post("/mcp", content=b"x" * 9000, headers={"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456"})
         assert r.status_code == 413, r.text
     # Exercise the guard's successful pass-through without MCP SDK sessions.
     async def fake_ok(scope, receive, send):
@@ -38,7 +40,7 @@ async def check():
     fake_app = SecureMCP(fake_ok)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fake_app),
                                  base_url="http://testserver") as client:
-        headers = {"Authorization": "Bearer test-only-not-a-secret"}
+        headers = {"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456"}
         r = await client.post("/mcp", content=b"{}", headers=headers)
         assert r.status_code == 200, r.text
         r = await client.post("/mcp", content=streamed_body(), headers=headers)
