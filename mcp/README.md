@@ -28,7 +28,8 @@ The server supports these operator-configured credential types:
   characters. Preserve it until an intentional rotation.
 - `AUN_MCP_AGENT_KEYS`: optional JSON dictionary mapping 2–64-character
   agent IDs to SHA-256 credential digests, an `enabled` boolean, and
-  `scopes: ["mcp:invoke"]`. The raw agent secret is never stored in JSON.
+  `scopes: ["mcp:invoke"]`, and an optional UTC `expires_at`. The raw agent
+  secret is never stored in JSON.
 
 Example **shape only**, never a real digest or credential:
 
@@ -37,7 +38,8 @@ Example **shape only**, never a real digest or credential:
   "agent-example": {
     "sha256": "replace-with-64-lowercase-hex-characters",
     "scopes": ["mcp:invoke"],
-    "enabled": true
+    "enabled": true,
+    "expires_at": "2030-01-01T00:00:00Z"
   }
 }
 ```
@@ -47,12 +49,14 @@ Example **shape only**, never a real digest or credential:
 On a **private interactive terminal** (not CI, not shared shell, not a chat),
 run `python mcp/agent_keys.py agent-example`. The command refuses to print
 credentials to redirected output. It displays a new random token **once** and
-a matching hash-only registry entry. Deliver the raw token directly to the
+a matching hash-only registry entry with a 30-day UTC expiration. Deliver the raw token directly to the
 authorized MCP client by an appropriate private channel. Add the hash-only
 entry to `AUN_MCP_AGENT_KEYS` under the existing Render service environment,
 preserving other agents and variables.
 
-To revoke one agent, set `enabled` to `false` or remove its entry, deploy,
+An absent `expires_at` remains valid for backward compatibility with existing
+operator-created keys, but newly issued agent keys expire automatically.
+To revoke one agent sooner, set `enabled` to `false` or remove its entry, deploy,
 and confirm denial. Credential configuration is read on each request, but
 Render changes take effect only after the service receives the configuration.
 Revocation is **not instantaneous across an in-progress deployment**.
