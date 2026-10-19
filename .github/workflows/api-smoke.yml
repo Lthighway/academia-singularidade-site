@@ -27,6 +27,7 @@ jobs:
       - run: python mcp/test_client.py
       - run: python mcp/test_remote_security.py
       - run: python mcp/test_remote_integration.py
+      - run: python mcp/test_combined_integration.py
   remote:
     needs: local
     runs-on: ubuntu-latest
