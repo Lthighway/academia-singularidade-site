@@ -26,3 +26,12 @@ def test_reject_content_type():
 
 def test_json_overflow_rejected():
     assert client.post('/v1/verify/json',json={'document':'1e9999'}).json()['valid'] is False
+
+def test_discovery_manifest_accurate():
+    r = client.get("/.well-known/agent-utility-network.json")
+    assert r.status_code == 200
+    manifest = r.json()
+    assert manifest["status"] == "public-preview"
+    assert {item["name"] for item in manifest["tools"]} == {"hash", "json"}
+    assert manifest["transports"] == {"rest": True, "mcp_remote": False, "a2a": False}
+    assert manifest["limits"]["request_body_max_bytes"] == 8192
