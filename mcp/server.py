@@ -4,6 +4,8 @@ No private Core access, network listener, filesystem writes, accounts, or exchan
 Run with: python -m mcp.server (from repository root).
 """
 import hashlib
+import json
+import math
 import hmac
 from mcp.server.fastmcp import FastMCP
 
@@ -26,10 +28,29 @@ def validate_json(document: str) -> dict:
     """Check bounded strict JSON syntax; reject duplicate keys and nonfinite numbers."""
     if len(document) > 4096:
         raise ValueError("Document too long")
-    # Reuse the same bounded parser without exposing HTTP service or Core.
-    from api.app import parse_json
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("Duplicate JSON key")
+            result[key] = value
+        return result
+    def reject_constant(value):
+        raise ValueError("Nonfinite JSON constant")
+    def check(value, depth=0):
+        if depth > 32:
+            raise ValueError("JSON depth exceeded")
+        if isinstance(value, float) and not math.isfinite(value):
+            raise ValueError("Nonfinite JSON number")
+        if isinstance(value, dict):
+            for child in value.values():
+                check(child, depth + 1)
+        if isinstance(value, list):
+            for child in value:
+                check(child, depth + 1)
     try:
-        parse_json(document)
+        value = json.loads(document, object_pairs_hook=unique, parse_constant=reject_constant)
+        check(value)
         return {"valid": True}
     except (ValueError, RecursionError):
         return {"valid": False, "error": "Invalid, duplicate-key, nonfinite, or over-depth JSON"}
