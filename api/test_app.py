@@ -23,3 +23,6 @@ def test_reject_large_payload():
     assert client.post("/v1/verify/json",json={"document":"x"*9000}).status_code==413
 def test_reject_content_type():
     assert client.post("/v1/verify/json",content="hello",headers={"Content-Type":"text/plain"}).status_code==415
+
+def test_json_overflow_rejected():
+    assert client.post('/v1/verify/json',json={'document':'1e9999'}).json()['valid'] is False
