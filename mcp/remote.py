@@ -67,7 +67,7 @@ class SecureMCP:
         origin = headers.get(b"origin", b"").decode("latin-1")
         authorization = headers.get(b"authorization", b"").decode("latin-1")
 
-        if not token or not hosts:
+        if len(token) < 32 or not hosts:
             await reject(503)
             return
         if host not in hosts or (origin and origin not in origins):
