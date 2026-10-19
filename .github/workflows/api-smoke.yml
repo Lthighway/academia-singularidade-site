@@ -25,6 +25,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r mcp/requirements.txt
       - run: python mcp/test_client.py
+      - run: python mcp/test_auth.py
       - run: python mcp/test_remote_security.py
       - run: python mcp/test_remote_integration.py
       - run: python mcp/test_combined_integration.py
