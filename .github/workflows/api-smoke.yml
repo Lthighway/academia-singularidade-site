@@ -100,6 +100,14 @@ jobs:
         with:
           script: |
             const repo = context.repo;
+            const issue_number = 1;
+            const previous = await github.rest.issues.get({ ...repo, issue_number });
+            const match = (previous.data.body || '').match(/\\*\\*Latest run:\\*\\* \\[(\\d+)\\]/);
+            const previousRunId = match ? Number(match[1]) : 0;
+            if (previousRunId > Number(context.runId)) {
+              core.info(`A newer CI report (${previousRunId}) already exists; skipping stale run ${context.runId}.`);
+              return;
+            }
             const run = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
             const body = [
               '# AUN verification health',
@@ -118,5 +126,5 @@ jobs:
               'Open the linked GitHub Actions run for detailed job diagnostics.',
             ].join('\n');
             await github.rest.issues.update({
-              ...repo, issue_number: 1, body,
+              ...repo, issue_number, body,
             });
