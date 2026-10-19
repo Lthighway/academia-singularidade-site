@@ -68,3 +68,41 @@ jobs:
                   time.sleep(12)
           print("Public HTTP verification and capability discovery passed.")
           PY
+
+  report:
+    # Readable status and run ID without repository write permissions or log leaks.
+    if: always()
+    needs: [local, mcp, remote]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Publish latest CI status to issue 1
+        uses: actions/github-script@v7
+        env:
+          LOCAL_RESULT: ${{ needs.local.result }}
+          MCP_RESULT: ${{ needs.mcp.result }}
+          REMOTE_RESULT: ${{ needs.remote.result }}
+        with:
+          script: |
+            const repo = context.repo;
+            const run = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '# AUN verification health',
+              '',
+              `**Latest run:** [${context.runId}](${run})`,
+              `**Commit:** \`${context.sha}\``,
+              `**Updated:** ${new Date().toISOString()}`,
+              '',
+              '| Check | Result |',
+              '|---|---|',
+              `| Local REST tests | ${process.env.LOCAL_RESULT} |`,
+              `| MCP stdio + HTTP integration | ${process.env.MCP_RESULT} |`,
+              `| Public HTTPS smoke test | ${process.env.REMOTE_RESULT} |`,
+              '',
+              'This report intentionally contains no request bodies, credentials or logs.',
+              'Open the linked GitHub Actions run for detailed job diagnostics.',
+            ].join('\\n');
+            await github.rest.issues.update({
+              ...repo, issue_number: 1, body,
+            });
