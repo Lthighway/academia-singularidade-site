@@ -23,6 +23,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -r mcp/requirements.txt
       - run: python mcp/test_client.py
+      - run: python mcp/test_remote_security.py
   remote:
     needs: local
     runs-on: ubuntu-latest
