@@ -129,3 +129,9 @@ def json_check(payload:JsonInput):
         return {"valid":True}
     except (ValueError,RecursionError):
         return {"valid":False,"error":"Invalid, duplicate-key, nonfinite, or over-depth JSON"}
+
+# Deliberately disabled unless explicitly enabled in the deployment environment.
+# The REST FastAPI routes above remain the default application.
+if os.environ.get("AUN_ENABLE_MCP") == "1":
+    from combined import wrap_api_with_mcp
+    app = wrap_api_with_mcp(app)
