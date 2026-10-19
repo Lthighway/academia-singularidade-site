@@ -20,11 +20,11 @@ async def main():
             assert not digest.isError, digest
             assert hashlib.sha256(b"abc").hexdigest() in str(digest), digest
             valid = await asyncio.wait_for(session.call_tool("validate_json", {"document":'{"a":1}'}), timeout=20)
-            assert not valid.isError and '"valid": true' in str(valid).lower().replace("'", '"'), valid
+            assert not valid.isError and valid.structuredContent and valid.structuredContent.get("valid") is True, valid
             invalid = await asyncio.wait_for(session.call_tool("validate_json", {"document":'{"a":1,"a":2}'}), timeout=20)
-            assert not invalid.isError and '"valid": false' in str(invalid).lower().replace("'", '"'), invalid
+            assert not invalid.isError and invalid.structuredContent and invalid.structuredContent.get("valid") is False, invalid
             overflow = await asyncio.wait_for(session.call_tool("validate_json", {"document":"1e9999"}), timeout=20)
-            assert not overflow.isError and '"valid": false' in str(overflow).lower().replace("'", '"'), overflow
+            assert not overflow.isError and overflow.structuredContent and overflow.structuredContent.get("valid") is False, overflow
             print("MCP stdio handshake, discovery, calls and validation passed.")
 
 if __name__ == "__main__":
