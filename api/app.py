@@ -80,9 +80,18 @@ async def guard(request: Request, call_next):
     response.headers["Cache-Control"]="no-store"
     response.headers["X-Content-Type-Options"]="nosniff"
     return response
+def mcp_preview_enabled():
+    """Report an optional deployed protocol only when its guard is configured."""
+    return (
+        os.environ.get("AUN_ENABLE_MCP") == "1"
+        and len(os.environ.get("AUN_MCP_TOKEN", "")) >= 32
+        and bool(os.environ.get("AUN_MCP_HOSTS", "").strip())
+    )
+
+
 @app.get("/")
 def root():
-    return {"service":"Academia Singularidade AUN public preview","status":"online","health":"/healthz","tools":"/v1/tools","docs":"/docs","mcp":False,"a2a":False}
+    return {"service":"Academia Singularidade AUN public preview","status":"online","health":"/healthz","tools":"/v1/tools","docs":"/docs","mcp":mcp_preview_enabled(),"a2a":False}
 
 @app.get("/healthz")
 def health():
@@ -92,7 +101,7 @@ def tools():
     return {"status":"preview","public":True,"tools":[
         {"name":"hash","path":"/v1/verify/hash"},
         {"name":"json","path":"/v1/verify/json"}],
-        "mcp":False,"a2a":False}
+        "mcp":mcp_preview_enabled(),"a2a":False}
 @app.get("/.well-known/agent-utility-network.json")
 def discovery_manifest():
     """Machine-readable public capabilities, without private-network claims."""
@@ -103,12 +112,13 @@ def discovery_manifest():
         "base_url": "https://academia-singularidade-aun.onrender.com",
         "documentation_url": "https://lthighway.github.io/academia-singularidade-site/docs.html",
         "openapi_url": "https://academia-singularidade-aun.onrender.com/openapi.json",
+        "mcp_url": "https://academia-singularidade-aun.onrender.com/mcp" if mcp_preview_enabled() else None,
         "tools": [
             {"name": "hash", "method": "POST", "path": "/v1/verify/hash"},
             {"name": "json", "method": "POST", "path": "/v1/verify/json"},
         ],
-        "transports": {"rest": True, "mcp_remote": False, "a2a": False},
-        "authentication": {"rest": "none"},
+        "transports": {"rest": True, "mcp_remote": mcp_preview_enabled(), "a2a": False},
+        "authentication": {"rest": "none", "mcp_remote": "restricted-bearer-preview" if mcp_preview_enabled() else "unavailable"},
         "limits": {
             "document_max_characters": 4096,
             "request_body_max_bytes": MAX_BODY,
