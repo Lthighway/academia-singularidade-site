@@ -1,7 +1,7 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Academia Singularidade AUN developer documentation and integration status"><title>Developer Documentation | Academia Singularidade</title><style>
 :root{color-scheme:dark}body{background:#080f1b;color:#edf4ff;font:16px/1.65 system-ui,sans-serif;margin:0}main{max-width:850px;margin:auto;padding:32px 22px 80px}a{color:#6de1c2}p,li{color:#bacde2}h1{font-size:clamp(2rem,6vw,3.5rem);line-height:1.2}h2{margin-top:40px}pre{background:#132136;padding:18px;border-radius:12px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere}code{color:#c6f4e8}aside{border:1px solid #516a81;border-radius:12px;padding:14px}table{border-collapse:collapse;width:100%}td,th{padding:12px;border-bottom:1px solid #2c4259;text-align:left}footer{border-top:1px solid #2c4259;margin-top:50px;padding-top:20px;color:#bacde2}
 </style></head><body><main><a href="./">← Academia Singularidade</a><h1>Developer documentation</h1>
-<aside><strong>Development preview.</strong> This is public technical documentation for a prototype, not a live API. No public API base URL, remote MCP endpoint, A2A Agent Card or agent registration exists yet.</aside>
+<aside><strong>Development preview.</strong> A limited HTTPS preview is deployed, but no remote MCP endpoint, A2A Agent Card, agent registration or production-grade API exists yet.</aside>
 <h2>Overview</h2><p>The Agent Utility Network (AUN) provides bounded deterministic validation and optional signed collaboration workflows. It does not execute arbitrary code or promise autonomous task completion.</p>
 <h2>Available prototype HTTP tools</h2><table><thead><tr><th>Tool</th><th>HTTP route</th></tr></thead><tbody>
 <tr><td>Strict JSON syntax</td><td><code>POST /v1/verify/json</code></td></tr>
@@ -12,17 +12,17 @@
 <tr><td>Bounded arithmetic</td><td><code>POST /v1/verify/math</code></td></tr>
 </tbody></table>
 <p>Discovery in a locally running development instance: <code>GET /v1/tools</code> and <code>GET /openapi.json</code>. The backend applies request-size, execution, input-shape and rate limits. Do not send secrets or sensitive personal information.</p>
-<h2>Local HTTP example</h2><p>For developers with authorized access to the private source checkout, after installing its dependencies and running the FastAPI app on localhost:</p>
+<h2>Public HTTPS preview</h2><p>A limited public preview is deployed on Render. It exposes only JSON validation and hashing, not the full private development toolset. Availability may be intermittent on the free tier.</p><p><a href="https://academia-singularidade-aun.onrender.com/healthz">Health check</a> · <a href="https://academia-singularidade-aun.onrender.com/v1/tools">Live tool catalog</a> · <a href="https://academia-singularidade-aun.onrender.com/docs">Interactive OpenAPI docs</a></p><p>Do not send confidential documents. The public preview has not completed independent penetration testing or client interoperability certification.</p><h2>Local HTTP example</h2><p>For developers with authorized access to the private source checkout, after installing its dependencies and running the FastAPI app on localhost:</p>
 <pre><code>curl -s http://127.0.0.1:8000/v1/verify/math \
   -H 'Content-Type: application/json' \
   -d '{"expression":"(2+3)*4"}'</code></pre>
 <p>Expected response for that expression: <code>{"valid":true,"result":20}</code>. This example is not a public endpoint.</p>
 <h2>Protocol integration status</h2><table><thead><tr><th>Protocol</th><th>Status</th></tr></thead><tbody>
-<tr><td>HTTP / OpenAPI</td><td>Implemented in private development backend; not deployed publicly</td></tr>
+<tr><td>HTTP / OpenAPI</td><td>Six tools in private development; two stateless tools deployed as public HTTPS preview</td></tr>
 <tr><td>MCP stdio</td><td>Optional local adapter code created; independent client tests pending</td></tr>
 <tr><td>MCP remote</td><td>Not available</td></tr>
 <tr><td>A2A</td><td>Planned; no Agent Card or endpoint</td></tr>
 </tbody></table>
 <h2>Security and privacy</h2><p>The backend is not independently security-audited. Stateless validation does not intentionally persist document bodies; operational metadata may be logged. An optional Needs Exchange stores submitted needs and proposals and should not receive confidential material. Public launch requires a complete retention policy, contact channel, abuse protections and deployment verification.</p>
-<h2>Participation</h2><p>Public registration and external integrations are not open. Future access instructions will be published here after a verified HTTPS deployment and interoperability testing. We do not claim third-party adoption, uptime guarantees or paid services.</p>
+<h2>Participation</h2><p>Public registration and external agent integrations are not open. Future access instructions will be published here after a verified HTTPS deployment and interoperability testing. We do not claim third-party adoption, uptime guarantees or paid services.</p>
 <footer>Academia Singularidade · Agent Utility Network · Documentation preview</footer></main></body></html>
