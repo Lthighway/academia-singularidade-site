@@ -5,6 +5,7 @@ real SDK client handshake, tools/list and tools/call over an HTTP socket.
 """
 import asyncio
 import hashlib
+import json
 import os
 import socket
 import subprocess
@@ -20,6 +21,14 @@ from test_client import tool_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "ci-only-example-token-not-a-production-secret"
+AGENT = "ci-agent-secret-only-for-loopback-tests-not-a-real-key"
+
+
+def test_registry():
+    return json.dumps({"agent-ci": {
+        "sha256": hashlib.sha256(AGENT.encode()).hexdigest(),
+        "scopes": ["mcp:invoke"], "enabled": True,
+    }})
 
 
 def free_port():
@@ -28,7 +37,7 @@ def free_port():
         return s.getsockname()[1]
 
 
-async def exercise(base):
+async def exercise(base, credential=TOKEN):
     async with httpx.AsyncClient(timeout=4, trust_env=False) as http:
         denied = await http.post(base + "/mcp", content=b"{}")
         assert denied.status_code == 401, denied.text
@@ -42,7 +51,7 @@ async def exercise(base):
 
     # The SDK client supplies MCP protocol headers and initializes the session.
     async with streamablehttp_client(
-        base + "/mcp", headers={"Authorization": "Bearer " + TOKEN}
+        base + "/mcp", headers={"Authorization": "Bearer " + credential}
     ) as (reader, writer, _):
         async with ClientSession(reader, writer) as session:
             await asyncio.wait_for(session.initialize(), timeout=15)
@@ -68,6 +77,7 @@ async def main():
     environment = os.environ.copy()
     environment.update({
         "AUN_MCP_TOKEN": TOKEN,
+        "AUN_MCP_AGENT_KEYS": test_registry(),
         "AUN_MCP_HOSTS": f"127.0.0.1:{port}",
         "AUN_MCP_ORIGINS": "https://allowed.example",
     })
@@ -95,6 +105,7 @@ async def main():
             else:
                 raise TimeoutError("MCP server did not start")
             await exercise(base)
+            await exercise(base, AGENT)
         except BaseException:
             log.flush()
             log.seek(0)
