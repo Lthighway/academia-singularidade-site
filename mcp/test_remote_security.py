@@ -28,6 +28,16 @@ async def check():
         assert r.status_code == 403, r.text
         r = await client.post("/mcp", content=b"x" * 9000, headers={"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456"})
         assert r.status_code == 413, r.text
+    # Duplicate security-sensitive headers must be rejected consistently.
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+        correct = "Bearer ci-only-long-example-token-never-deploy-123456"
+        for repeated in [
+            [("Authorization", correct), ("Authorization", "Bearer wrong")],
+            [("Host", "testserver"), ("Host", "unexpected.example"), ("Authorization", correct)],
+            [("Origin", "https://example.org"), ("Origin", "https://evil.example"), ("Authorization", correct)],
+        ]:
+            r = await client.post("/mcp", content=b"{}", headers=repeated)
+            assert r.status_code == 400, (repeated, r.status_code)
     # Exercise the guard's successful pass-through without MCP SDK sessions.
     async def fake_ok(scope, receive, send):
         message = await receive()
