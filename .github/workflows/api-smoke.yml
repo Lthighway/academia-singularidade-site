@@ -42,5 +42,6 @@ jobs:
           assert result["digest"]==hashlib.sha256(b"abc").hexdigest()
           assert req("/v1/verify/json",{"document":'{"x":true}'})["valid"] is True
           assert req("/v1/verify/json",{"document":'{"x":1,"x":2}'})["valid"] is False
+          assert req("/v1/verify/json",{"document":"1e9999"})["valid"] is False
           print("Public HTTP verification passed.")
           PY
