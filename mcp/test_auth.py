@@ -1,6 +1,7 @@
 """Standalone fail-closed credential-policy tests; no real secrets stored."""
 import hashlib
 import json
+from datetime import datetime, timedelta, timezone
 
 from auth import authorize, _load_registry
 from agent_keys import make_policy
@@ -68,7 +69,37 @@ def run():
 
     assert _load_registry("") == {}
     assert authorize("Bearer " + AGENT, {"AUN_MCP_AGENT_KEYS": registry()}) == (200, "agent-example")
-    print("Scoped MCP credential, revocation, missing-scope and configuration tests passed.")
+    current = datetime.now(timezone.utc)
+    issued = make_policy("agent-expiring", AGENT)
+    expires = issued["agent-expiring"]["expires_at"]
+    issued_date = datetime.strptime(expires, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    assert timedelta(days=29) < issued_date - current <= timedelta(days=31)
+    assert authorize("Bearer " + AGENT, {
+        "AUN_MCP_AGENT_KEYS": json.dumps(issued)
+    }) == (200, "agent-expiring")
+
+    expired = make_policy("agent-expiring", AGENT)
+    expired["agent-expiring"]["expires_at"] = (current - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    assert authorize("Bearer " + AGENT, {
+        "AUN_MCP_AGENT_KEYS": json.dumps(expired)
+    }) == (401, None)
+
+    for invalid_expiry in ["tomorrow", "2026-02-30T00:00:00Z", "2026-10-19T12:00:00+00:00", 123]:
+        broken = make_policy("agent-expiring", AGENT)
+        broken["agent-expiring"]["expires_at"] = invalid_expiry
+        assert authorize("Bearer " + OWNER, {
+            "AUN_MCP_TOKEN": OWNER,
+            "AUN_MCP_AGENT_KEYS": json.dumps(broken),
+        }) == (503, None), invalid_expiry
+
+    for invalid_lifetime in [0, 91, True, "30"]:
+        try:
+            make_policy("agent-expiring", AGENT, days=invalid_lifetime)
+            raise AssertionError("Invalid expiration lifetime accepted")
+        except ValueError:
+            pass
+
+    print("Scoped MCP credential, expiry, revocation and fail-closed config tests passed.")
 
 
 if __name__ == "__main__":
