@@ -61,7 +61,9 @@ jobs:
               try:
                   beacon=req("/.well-known/agent-utility-network.json")
                   assert beacon["status"]=="public-preview"
-                  assert beacon["transports"]=={"rest":True,"mcp_remote":False,"a2a":False}
+                  assert beacon["transports"]=={"rest":True,"mcp_remote":True,"a2a":False}
+                  assert beacon["authentication"]["mcp_remote"]=="restricted-bearer-preview"
+                  assert beacon["mcp_url"]==base+"/mcp"
                   assert {t["name"] for t in beacon["tools"]}=={"hash","json"}
                   break
               except Exception:
