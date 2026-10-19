@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths: ["api/**", "mcp/**", ".github/workflows/api-smoke.yml"]
   workflow_dispatch:
+  schedule:
+    - cron: '21 9,21 * * *' # Two low-frequency public smoke checks per day (UTC).
 jobs:
   local:
     runs-on: ubuntu-latest
