@@ -81,12 +81,19 @@ async def guard(request: Request, call_next):
     response.headers["X-Content-Type-Options"]="nosniff"
     return response
 def mcp_preview_enabled():
-    """Report an optional deployed protocol only when its guard is configured."""
-    return (
-        os.environ.get("AUN_ENABLE_MCP") == "1"
-        and len(os.environ.get("AUN_MCP_TOKEN", "")) >= 32
-        and bool(os.environ.get("AUN_MCP_HOSTS", "").strip())
-    )
+    """Report MCP only when the router and a valid auth configuration exist."""
+    if os.environ.get("AUN_ENABLE_MCP") != "1":
+        return False
+    if not os.environ.get("AUN_MCP_HOSTS", "").strip():
+        return False
+    try:
+        # combined.py loads the isolated MCP directory when enabled.
+        from auth import authorize
+        # Empty authorization must yield 401 for a correctly configured
+        # protected endpoint, regardless of operator versus agent-only keys.
+        return authorize("")[0] == 401
+    except (ImportError, ValueError, TypeError):
+        return False
 
 
 @app.get("/")
