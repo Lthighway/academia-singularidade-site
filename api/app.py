@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+import math
 import os
 import time
 from collections import deque
@@ -40,6 +41,8 @@ def parse_json(raw):
             for x in v.values(): walk(x, depth+1)
         elif isinstance(v, list):
             for x in v: walk(x, depth+1)
+        elif isinstance(v, float) and not math.isfinite(v):
+            raise ValueError("Nonfinite JSON number")
     walk(obj)
     return obj
 @app.middleware("http")
