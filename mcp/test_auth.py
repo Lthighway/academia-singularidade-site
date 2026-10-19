@@ -3,6 +3,7 @@ import hashlib
 import json
 
 from auth import authorize, _load_registry
+from agent_keys import make_policy
 
 
 OWNER = "operator-test-credential-only-keep-out-of-production"
@@ -52,6 +53,18 @@ def run():
         assert authorize("Bearer " + OWNER, {
             "AUN_MCP_TOKEN": OWNER, "AUN_MCP_AGENT_KEYS": value
         }) == (503, None), value
+
+    generated = make_policy("agent-local", AGENT)
+    assert generated["agent-local"]["sha256"] == sha(AGENT)
+    assert authorize("Bearer " + AGENT, {
+        "AUN_MCP_AGENT_KEYS": json.dumps(generated)
+    }) == (200, "agent-local")
+    for bad_id in ["A", "UPPER", "space name", ""]:
+        try:
+            make_policy(bad_id, AGENT)
+            raise AssertionError("Invalid ID accepted")
+        except ValueError:
+            pass
 
     assert _load_registry("") == {}
     assert authorize("Bearer " + AGENT, {"AUN_MCP_AGENT_KEYS": registry()}) == (200, "agent-example")
