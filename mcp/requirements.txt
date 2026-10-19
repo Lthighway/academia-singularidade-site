@@ -1,2 +1,2 @@
-mcp>=1.0,<2
+# Shared pinned SDK/runtime versions used by the public REST preview.
 -r ../api/requirements.txt
