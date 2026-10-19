@@ -1,5 +1,7 @@
 """Preflight security tests; no remote MCP deployment is performed."""
 import asyncio
+import hashlib
+import json
 import os
 import httpx
 import remote
@@ -55,7 +57,42 @@ async def check():
         finally:
             remote.PER_MINUTE_LIMIT = old_limit
             remote._rate_events.clear()
-    print("MCP remote preflight authentication, limits and streaming tests passed.")
+            remote._actor_events.clear()
+    # Distinct agents can be accepted, denied by scope, or revoked without
+    # changing the operator token or exposing raw credentials in configuration.
+    agent = "scoped-ci-agent-test-credential-never-deploy"
+    policy = {"agent-ci": {
+        "sha256": hashlib.sha256(agent.encode()).hexdigest(),
+        "scopes": ["mcp:invoke"], "enabled": True,
+    }}
+    os.environ["AUN_MCP_AGENT_KEYS"] = json.dumps(policy)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=fake_app),
+                                 base_url="http://testserver") as client:
+        agent_headers = {"Authorization": "Bearer " + agent}
+        assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 200
+        old_actor_limit = remote.PER_AGENT_MINUTE_LIMIT
+        try:
+            remote._rate_events.clear()
+            remote._actor_events.clear()
+            remote.PER_AGENT_MINUTE_LIMIT = 2
+            assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 200
+            assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 200
+            assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 429
+        finally:
+            remote.PER_AGENT_MINUTE_LIMIT = old_actor_limit
+            remote._rate_events.clear()
+            remote._actor_events.clear()
+        policy["agent-ci"]["scopes"] = []
+        os.environ["AUN_MCP_AGENT_KEYS"] = json.dumps(policy)
+        assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 403
+        policy["agent-ci"]["scopes"] = ["mcp:invoke"]
+        policy["agent-ci"]["enabled"] = False
+        os.environ["AUN_MCP_AGENT_KEYS"] = json.dumps(policy)
+        assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 401
+        os.environ["AUN_MCP_AGENT_KEYS"] = "{malformed-json"
+        assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 503
+    os.environ.pop("AUN_MCP_AGENT_KEYS", None)
+    print("MCP remote authentication, scope, revocation, rate and streaming tests passed.")
 
 
 if __name__ == "__main__":
