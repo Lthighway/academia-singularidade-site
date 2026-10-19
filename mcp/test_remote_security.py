@@ -92,7 +92,40 @@ async def check():
         os.environ["AUN_MCP_AGENT_KEYS"] = "{malformed-json"
         assert (await client.post("/mcp", content=b"{}", headers=agent_headers)).status_code == 503
     os.environ.pop("AUN_MCP_AGENT_KEYS", None)
-    print("MCP remote authentication, scope, revocation, rate and streaming tests passed.")
+    # Saturation is rejected before unbounded body processing or tool work.
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_tool(scope, receive, send):
+        await receive()
+        entered.set()
+        await release.wait()
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    original_sem = remote._inflight
+    try:
+        remote._inflight = asyncio.Semaphore(1)
+        remote._rate_events.clear()
+        remote._actor_events.clear()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=SecureMCP(slow_tool)),
+            base_url="http://testserver", timeout=4
+        ) as client:
+            headers = {"Authorization": "Bearer ci-only-long-example-token-never-deploy-123456"}
+            first = asyncio.create_task(client.post("/mcp", content=b"{}", headers=headers))
+            await asyncio.wait_for(entered.wait(), timeout=2)
+            busy = await client.post("/mcp", content=b"{}", headers=headers)
+            assert busy.status_code == 429, busy.text
+            release.set()
+            assert (await first).status_code == 200
+    finally:
+        release.set()
+        remote._inflight = original_sem
+        remote._rate_events.clear()
+        remote._actor_events.clear()
+
+    print("MCP remote authentication, per-agent limits, revocation and concurrency tests passed.")
 
 
 if __name__ == "__main__":
