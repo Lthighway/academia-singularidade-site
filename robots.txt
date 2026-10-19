@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://lthighway.github.io/academia-singularidade-site/sitemap.xml
