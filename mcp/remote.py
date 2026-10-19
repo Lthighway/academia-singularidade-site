@@ -4,6 +4,9 @@ Never imports the private Academy Core. Not deployed by the REST preview service
 All allowed hosts, optional browser origins and bearer token must be configured.
 """
 import asyncio
+import time
+from collections import deque
+from threading import Lock
 import hmac
 import os
 
@@ -12,6 +15,11 @@ from server import mcp
 
 MAX_BODY = 8192
 BODY_TIMEOUT_SECONDS = 8
+# Process-local circuit breaker for a single-instance staging service.
+# This is not a substitute for provider-level global rate limiting.
+PER_MINUTE_LIMIT = 90
+_rate_events = deque()
+_rate_lock = Lock()
 
 
 def configured_set(name):
@@ -76,6 +84,17 @@ class SecureMCP:
             return
         if length < 0 or length > MAX_BODY:
             await reject(413)
+            return
+
+        now = time.monotonic()
+        with _rate_lock:
+            while _rate_events and _rate_events[0] <= now - 60:
+                _rate_events.popleft()
+            throttled = len(_rate_events) >= PER_MINUTE_LIMIT
+            if not throttled:
+                _rate_events.append(now)
+        if throttled:
+            await reject(429)
             return
 
         chunks = []
