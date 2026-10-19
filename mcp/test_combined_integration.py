@@ -57,6 +57,8 @@ async def main():
                 manifest = await client.get(base + "/.well-known/agent-utility-network.json")
                 assert manifest.status_code == 200
                 assert manifest.json()["status"] == "public-preview"
+                assert manifest.json()["transports"]["mcp_remote"] is True
+                assert manifest.json()["authentication"]["mcp_remote"] == "restricted-bearer-preview"
 
             await exercise(base)
             await exercise(base, AGENT)
