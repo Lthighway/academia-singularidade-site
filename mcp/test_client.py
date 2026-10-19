@@ -45,7 +45,15 @@ async def main():
             assert not invalid.isError and tool_payload(invalid).get("valid") is False, invalid
             overflow = await asyncio.wait_for(session.call_tool("validate_json", {"document":"1e9999"}), timeout=20)
             assert not overflow.isError and tool_payload(overflow).get("valid") is False, overflow
-            print("MCP stdio handshake, discovery, calls and validation passed.")
+            sha512 = await asyncio.wait_for(session.call_tool("hash_text", {"document": "abc", "algorithm": "sha512", "expected": hashlib.sha512(b"abc").hexdigest()}), timeout=20)
+            assert not sha512.isError and tool_payload(sha512).get("matches") is True, sha512
+            mismatch = await asyncio.wait_for(session.call_tool("hash_text", {"document": "abc", "expected": "0" * 64}), timeout=20)
+            assert not mismatch.isError and tool_payload(mismatch).get("matches") is False, mismatch
+            bad_algorithm = await asyncio.wait_for(session.call_tool("hash_text", {"document": "abc", "algorithm": "md5"}), timeout=20)
+            assert bad_algorithm.isError, bad_algorithm
+            too_large = await asyncio.wait_for(session.call_tool("validate_json", {"document": "x" * 4097}), timeout=20)
+            assert too_large.isError, too_large
+            print("MCP stdio handshake, discovery, positive and negative calls passed.")
 
 if __name__ == "__main__":
     asyncio.run(main())
