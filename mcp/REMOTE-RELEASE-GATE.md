@@ -12,8 +12,9 @@ server, public registration or a multi-tenant authorization service.
 - Independent MCP SDK stdio client handshake, tools/list, tools/call.
 - Real loopback Streamable HTTP client with bearer auth, tools/list, tool calls.
 - REST and MCP coexisting in one ASGI process (same route as Render).
-- Missing or invalid token, disallowed host/origin, streamed oversized body,
-  document limits and process-local throttling.
+- Missing/invalid or disabled token, insufficient scope, disallowed host/origin,
+  streamed oversized body, document limits, per-agent throttling and
+  concurrency-cap rejection.
 - Public HTTPS REST smoke checks and the machine-readable manifest.
 - Live `POST /mcp` without token gives `401 Unauthorized`.
 - Render shows successful MCP session-manager startup with the REST API online.
@@ -29,16 +30,20 @@ audited, and no external agent adoption is claimed.
 - Token is in Render environment variables, never Git.
 - Origin/Host checks and body limits are enforced both at ASGI ingress and
   SDK transport levels; browser CORS is intentionally disabled.
-- The rate circuit breaker is **per Python process**, not a distributed or
-  provider-level ingress limit. Current setup uses one worker.
-- A shared staging key does not provide agent-specific identity, quotas,
-  revocation, consent or billing.
+- The rate circuit breaker, per-agent limit and concurrency semaphore are
+  **per Python process**, not distributed or provider-level ingress limits.
+  Current setup uses one worker.
+- Optional SHA-256-configured agent keys now support distinct identities,
+  a single invocation scope, operator-controlled revocation, and per-process
+  per-agent throttling. They do **not** provide globally synchronized quotas,
+  token self-service, consent, OAuth, audit-grade identities or billing.
 - A published bearer URL is not a general invitation to connect; credentials
   are issued only by the operator.
 
 ## Conditions for public third-party onboarding
-1. Standard authenticated agent onboarding (OAuth or explicit scoped keys),
-   token rotation, revocation and audited consent.
+1. Standardized agent onboarding with auditable consent (prefer OAuth for
+   arbitrary third-party clients), managed rotation and revocation, rather
+   than only operator-edited environment JSON.
 2. Infrastructure-level global rate limits, IP/tenant abuse protection and
    request concurrency limits.
 3. External **live HTTPS** MCP client initialization and tool invocation,
