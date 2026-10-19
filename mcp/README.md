@@ -1,65 +1,92 @@
-# AUN MCP verification tools (experimental)
+# Academia Singularidade — MCP integration (restricted preview)
 
-The MCP adapter exposes **only** `hash_text` and `validate_json`. It contains no
-Academia Core modules, shared secrets, payment functions or persistent storage.
+The public AUN preview exposes only two deterministic tools through MCP:
+`hash_text` and `validate_json`. **No private Academy Core, persistence,
+shell operations, arbitrary URL fetches, or third-party onboarding.**
 
-## Local stdio transport (tested by GitHub Actions)
+## Local MCP stdio
 
-From the repository root, using Python 3.12:
+Python 3.12, from the repository root:
 
 ```sh
 python -m pip install -r mcp/requirements.txt
 python mcp/server.py
 ```
 
-Client/stdio protocol regression: `python mcp/test_client.py`.
+## Protected remote Streamable HTTP
 
-## Isolated Streamable HTTP staging (not publicly deployed)
+Staging endpoint: `https://academia-singularidade-aun.onrender.com/mcp`.
 
-`mcp/remote.py` wraps the official Python MCP SDK HTTP app with fail-closed
-host, browser-Origin and constant-time bearer checks. The SDK independently
-checks allowed hosts/origins. The service runs in stateless, JSON-response mode
-for low-cost experiments, not public multi-tenant production.
+This endpoint is enabled in the existing Render Free service using
+`AUN_ENABLE_MCP=1`, `AUN_MCP_HOSTS` and a server-side credential.
+Anonymous callers receive 401. The separate REST API remains accessible
+without MCP credentials. There is **no public agent enrollment**.
 
-Test on loopback only. Set environment variables in your shell **without
-committing token values or posting them in logs**:
+The server supports these operator-configured credential types:
 
-```sh
-export AUN_MCP_TOKEN="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
-export AUN_MCP_HOSTS="127.0.0.1:8765"
-export AUN_MCP_ORIGINS=""
-python -m uvicorn remote:app --app-dir mcp --host 127.0.0.1 --port 8765 --workers 1
+- `AUN_MCP_TOKEN`: existing legacy operator bearer secret, minimum 32
+  characters. Preserve it until an intentional rotation.
+- `AUN_MCP_AGENT_KEYS`: optional JSON dictionary mapping 2–64-character
+  agent IDs to SHA-256 credential digests, an `enabled` boolean, and
+  `scopes: ["mcp:invoke"]`. The raw agent secret is never stored in JSON.
+
+Example **shape only**, never a real digest or credential:
+
+```json
+{
+  "agent-example": {
+    "sha256": "replace-with-64-lowercase-hex-characters",
+    "scopes": ["mcp:invoke"],
+    "enabled": true
+  }
+}
 ```
 
-The MCP endpoint is `http://127.0.0.1:8765/mcp`, and requires a
-`Bearer` token. This HTTP URL is strictly for loopback testing; production
-credentials should only traverse HTTPS.
+### Local-only key issuance
 
-Automated preflight and actual HTTP client tests:
+On a **private interactive terminal** (not CI, not shared shell, not a chat),
+run `python mcp/agent_keys.py agent-example`. The command refuses to print
+credentials to redirected output. It displays a new random token **once** and
+a matching hash-only registry entry. Deliver the raw token directly to the
+authorized MCP client by an appropriate private channel. Add the hash-only
+entry to `AUN_MCP_AGENT_KEYS` under the existing Render service environment,
+preserving other agents and variables.
+
+To revoke one agent, set `enabled` to `false` or remove its entry, deploy,
+and confirm denial. Credential configuration is read on each request, but
+Render changes take effect only after the service receives the configuration.
+Revocation is **not instantaneous across an in-progress deployment**.
+No agent credentials are issued automatically through HTTP.
+
+### Local security/integration verification
 
 ```sh
+python mcp/test_auth.py
+python mcp/test_client.py
 python mcp/test_remote_security.py
 python mcp/test_remote_integration.py
+python mcp/test_combined_integration.py
 ```
 
-The test harness creates a disposable loopback server and uses a **fixed
-test-only credential**. That credential has no role in any deployment.
+These run automatically in the public CI workflow. The HTTP integration uses
+**disposable loopback credentials**; they are *never* production secrets.
 
-## Security / release limitations
+## Safety and release limits
 
-- Local CI tests do not establish security, reliability or compatibility on a
-  public Internet endpoint.
-- The request rate circuit breaker is **per Python process**, not distributed.
-  It cannot defend a multi-replica deployment by itself.
-- The static bearer token is for controlled staging, **not OAuth**, key
-  issuance, tenant authorization or broad third-party onboarding.
-- Browser CORS is intentionally **not enabled** in staging.
-- For a deployed HTTPS MCP route, configure exactly the expected
-  `AUN_MCP_HOSTS`, allowed origins and a unique secret via Render environment
-  variables, not the codebase.
-- A remote rollout requires a verified live MCP client test, ingress-layer
-  abuse limits, logs without payloads/credentials, cost limits and rollback.
-- The current `https://academia-singularidade-aun.onrender.com` is the
-  separate REST/OpenAPI preview. **It is not an MCP endpoint.**
+- The guard enforces allowed hosts, browser Origins, maximum body size,
+  an eight-second read timeout, per-process throttling, per-agent throttling
+  and up to eight concurrent active calls/reads. The SDK independently
+  protects against forbidden hosts/origins.
+- These limits are **not distributed** and are not a replacement for
+  infrastructure-level IP controls and global quotas.
+- `mcp:invoke` grants access to **both** public tools, not individually
+  granular tool permissions. There is no OAuth flow, consent UI, key
+  self-registration, billing or audited tenant isolation.
+- Browser CORS is not enabled. Never send bearer tokens in URL query strings,
+  logs, issue comments, screenshots or Git commits.
+- The REST preview and MCP route have not passed an independent security audit
+  or general public onboarding tests.
+- Rollback: set `AUN_ENABLE_MCP=0` (do not unset other variables), deploy and
+  verify REST health, catalog and the public discovery manifest.
 
-See [REMOTE-RELEASE-GATE.md](REMOTE-RELEASE-GATE.md) for the full checklist.
+See [REMOTE-RELEASE-GATE.md](REMOTE-RELEASE-GATE.md) for unresolved tasks.
