@@ -1,7 +1,7 @@
-"""Isolated MCP Streamable HTTP staging service.
+"""Isolated, authenticated MCP Streamable HTTP preview.
 
-Never imports the private Academy Core. Not deployed by the REST preview service.
-All allowed hosts, optional browser origins and bearer token must be configured.
+Mounted in the public REST service only when AUN_ENABLE_MCP=1.
+Never imports the private Academy Core or reads persistent user data.
 """
 import asyncio
 import time
@@ -110,44 +110,46 @@ class SecureMCP:
             await reject(429)
             return
 
-        chunks = []
-        received = 0
-        try:
-            async with asyncio.timeout(BODY_TIMEOUT_SECONDS):
-                while True:
-                    message = await receive()
-                    if message["type"] == "http.disconnect":
-                        return
-                    if message["type"] != "http.request":
-                        continue
-                    chunk = message.get("body", b"")
-                    received += len(chunk)
-                    if received > MAX_BODY:
-                        await reject(413)
-                        return
-                    chunks.append(chunk)
-                    if not message.get("more_body", False):
-                        break
-        except TimeoutError:
-            await reject(408)
-            return
-
-        delivered = False
-
-        async def bounded_receive():
-            nonlocal delivered
-            if not delivered:
-                delivered = True
-                return {"type": "http.request", "body": b"".join(chunks),
-                        "more_body": False}
-            return await receive()
-
+        # Acquire before body reads, not merely before tool execution.
+        # Otherwise many slow clients could bypass the concurrency bound.
         try:
             await asyncio.wait_for(_inflight.acquire(), timeout=0.05)
         except TimeoutError:
             await reject(429)
             return
         try:
+            chunks = []
+            received = 0
+            try:
+                async with asyncio.timeout(BODY_TIMEOUT_SECONDS):
+                    while True:
+                        message = await receive()
+                        if message["type"] == "http.disconnect":
+                            return
+                        if message["type"] != "http.request":
+                            continue
+                        chunk = message.get("body", b"")
+                        received += len(chunk)
+                        if received > MAX_BODY:
+                            await reject(413)
+                            return
+                        chunks.append(chunk)
+                        if not message.get("more_body", False):
+                            break
+            except TimeoutError:
+                await reject(408)
+                return
+
+            delivered = False
+
+            async def bounded_receive():
+                nonlocal delivered
+                if not delivered:
+                    delivered = True
+                    return {"type": "http.request", "body": b"".join(chunks),
+                            "more_body": False}
+                return await receive()
+
             await self.wrapped(scope, bounded_receive, send)
         finally:
             _inflight.release()
