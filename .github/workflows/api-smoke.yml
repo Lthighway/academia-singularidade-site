@@ -102,7 +102,7 @@ jobs:
               '',
               'This report intentionally contains no request bodies, credentials or logs.',
               'Open the linked GitHub Actions run for detailed job diagnostics.',
-            ].join('\\n');
+            ].join('\n');
             await github.rest.issues.update({
               ...repo, issue_number: 1, body,
             });
