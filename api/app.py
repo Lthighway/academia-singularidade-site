@@ -93,6 +93,30 @@ def tools():
         {"name":"hash","path":"/v1/verify/hash"},
         {"name":"json","path":"/v1/verify/json"}],
         "mcp":False,"a2a":False}
+@app.get("/.well-known/agent-utility-network.json")
+def discovery_manifest():
+    """Machine-readable public capabilities, without private-network claims."""
+    return {
+        "network": "academia-singularidade-aun",
+        "schema_version": "0.1",
+        "status": "public-preview",
+        "base_url": "https://academia-singularidade-aun.onrender.com",
+        "documentation_url": "https://lthighway.github.io/academia-singularidade-site/docs.html",
+        "openapi_url": "https://academia-singularidade-aun.onrender.com/openapi.json",
+        "tools": [
+            {"name": "hash", "method": "POST", "path": "/v1/verify/hash"},
+            {"name": "json", "method": "POST", "path": "/v1/verify/json"},
+        ],
+        "transports": {"rest": True, "mcp_remote": False, "a2a": False},
+        "authentication": {"rest": "none"},
+        "limits": {
+            "document_max_characters": 4096,
+            "request_body_max_bytes": MAX_BODY,
+            "rate_limit": "best-effort-per-process",
+        },
+    }
+
+
 @app.post("/v1/verify/hash")
 def hash_text(payload:HashInput):
     digest=hashlib.new(payload.algorithm,payload.document.encode("utf-8")).hexdigest()
