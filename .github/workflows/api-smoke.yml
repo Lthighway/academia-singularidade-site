@@ -54,5 +54,15 @@ jobs:
           assert req("/v1/verify/json",{"document":'{"x":true}'})["valid"] is True
           assert req("/v1/verify/json",{"document":'{"x":1,"x":2}'})["valid"] is False
           assert req("/v1/verify/json",{"document":"1e9999"})["valid"] is False
-          print("Public HTTP verification passed.")
+          for attempt in range(8):
+              try:
+                  beacon=req("/.well-known/agent-utility-network.json")
+                  assert beacon["status"]=="public-preview"
+                  assert beacon["transports"]=={"rest":True,"mcp_remote":False,"a2a":False}
+                  assert {t["name"] for t in beacon["tools"]}=={"hash","json"}
+                  break
+              except Exception:
+                  if attempt==7: raise
+                  time.sleep(12)
+          print("Public HTTP verification and capability discovery passed.")
           PY
