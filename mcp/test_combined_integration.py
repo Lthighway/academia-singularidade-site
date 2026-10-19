@@ -12,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 import httpx
-from test_remote_integration import TOKEN, ROOT, exercise, free_port
+from test_remote_integration import TOKEN, AGENT, ROOT, exercise, free_port, test_registry
 
 
 async def main():
@@ -22,6 +22,7 @@ async def main():
     env.update({
         "AUN_ENABLE_MCP": "1",
         "AUN_MCP_TOKEN": TOKEN,
+        "AUN_MCP_AGENT_KEYS": test_registry(),
         "AUN_MCP_HOSTS": f"127.0.0.1:{port}",
         "AUN_MCP_ORIGINS": "https://allowed.example",
     })
@@ -58,6 +59,7 @@ async def main():
                 assert manifest.json()["status"] == "public-preview"
 
             await exercise(base)
+            await exercise(base, AGENT)
             print("One-process REST + authenticated MCP integration passed.")
         except BaseException:
             log.flush()
